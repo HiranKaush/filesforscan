@@ -3,12 +3,12 @@ const qrcode = require('qrcode');
 exports.qrGenerator = (req, res) => {
   const { std_ID } = req.body;
 
-  if (!std_ID || std_ID.length === 0) {
-    res.status(400).send("Empty Data or Missing std_ID");
-    return;
+  // Validate std_ID type and structure
+  if (typeof std_ID !== 'string' || std_ID.trim().length === 0) {
+    return res.status(400).send("Invalid std_ID. It must be a non-empty string.");
   }
 
-  const studentDetails = { std_ID};
+  const studentDetails = { std_ID };
 
   try {
     const options = {
@@ -18,14 +18,13 @@ exports.qrGenerator = (req, res) => {
 
     qrcode.toDataURL(JSON.stringify(studentDetails), options, (err, qrCodeUrl) => {
       if (err) {
-        
-        res.status(500).send("Error generating QR code");
-      } else {
-        res.send(qrCodeUrl);
+        console.error("Error generating QR code:", err);
+        return res.status(500).send("Error generating QR code");
       }
+      res.send(qrCodeUrl);
     });
   } catch (err) {
-    
+    console.error("Unexpected error:", err);
     res.status(500).send("Error generating QR code");
   }
 };

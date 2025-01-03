@@ -3,7 +3,7 @@ const bcrypt = require("bcrypt");
 const validator = require("validator");
 const nodemailer = require("nodemailer");
 const Admin = require("../models/adminModel");
-
+const escapeHtml = require("escape-html");
 // --------- Create a Token
 const createToken = (_id, exptime) => {
   return jwt.sign({ _id }, process.env.SECRETKEY, { expiresIn: exptime });
@@ -20,51 +20,42 @@ const getCurrentDatePlusOneDay = () => {
 const adminRegister = async (req, res) => {
   const { email, password, role, instituteId } = req.body;
 
+  // Check for empty fields
   let emptyFields = [];
-
-  if (!email) {
-    emptyFields.push("email");
-  }
-  if (!password) {
-    emptyFields.push("password");
-  }
-
+  if (!email) emptyFields.push("email");
+  if (!password) emptyFields.push("password");
   if (emptyFields.length > 0) {
-    return res
-      .status(400)
-      .json({ error: "Please fill in all the fields", emptyFields });
+    return res.status(400).json({ error: "Please fill in all the fields", emptyFields });
   }
 
   try {
-    // validation
     if (!instituteId) {
-      throw Error("Need InstituteId");
+      throw Error("Institute ID is required");
     }
 
-    // check if email already exists
-    const exists = await Admin.findOne({ email });
+    // Validate email
+    if (!validator.isEmail(email)) {
+      throw Error("Invalid email format");
+    }
 
+    // Check if email already exists
+    const exists = await Admin.findOne({ email });
     if (exists) {
       throw Error("Email already in use");
     }
 
-    if (!validator.isEmail(email)) {
-      throw Error("Email not valid");
-    }
-
-    // generate salt and hash password
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(password, salt);
 
-    // create admin
-    const admin = await Admin.create({
-      email,
-      password: hash,
-      role,
-      instituteId,
-    });
+    // Create new admin
+    const admin = await Admin.create({ email, password: hash, role, instituteId });
 
-    // Send email to the newly registered admin
+    // Sanitize data before embedding in HTML
+    const escapedEmail = escapeHtml(email);
+    const escapedPassword = escapeHtml(password);
+
+    // Configure Nodemailer transporter
     let transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT,
@@ -75,6 +66,7 @@ const adminRegister = async (req, res) => {
       },
     });
 
+    // Define email options
     var mailOptions = {
       from: process.env.SMTP_MAIL,
       to: email,
@@ -83,34 +75,19 @@ const adminRegister = async (req, res) => {
         <html>
           <head>
             <style>
-              body {
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-              }
-              .container {
-                max-width: 600px;
-                margin: 0 auto;
-                padding: 20px;
-                background-color: #f9f9f9;
-                border-radius: 10px;
-              }
-              h2 {
-                color: #333;
-              }
-              p {
-                margin-bottom: 10px;
-              }
-              .highlight {
-                font-weight: bold;
-              }
+              body { font-family: Arial, sans-serif; line-height: 1.6; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9; border-radius: 10px; }
+              h2 { color: #333; }
+              p { margin-bottom: 10px; }
+              .highlight { font-weight: bold; }
             </style>
           </head>
           <body>
             <div class="container">
               <h2>Welcome to our platform!</h2>
               <p>Your admin account has been successfully created. Here are your account details:</p>
-              <p>Email: ${email}</p>
-              <p>Password: <span class="highlight">${password}</span></p>
+              <p>Email: ${escapedEmail}</p>
+              <p>Password: <span class="highlight">${escapedPassword}</span></p>
               <p>Please keep your credentials secure.</p>
               <p>After first login, please change your password immediately.</p>
               <p>This is an automated message.</p>
@@ -119,7 +96,9 @@ const adminRegister = async (req, res) => {
         </html>
       `,
     };
-    transporter.sendMail(mailOptions, function (error, info) {
+
+    // Send email
+    transporter.sendMail(mailOptions, function (error) {
       if (error) {
         return res.status(500).json({ error: "Failed to send email" });
       } else {

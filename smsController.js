@@ -1,18 +1,14 @@
 const axios = require('axios');
-//const SmsCount = require('../models/smsCount'); // Import your SMS count model here
 const instituteModel = require('../models/instituteModel');
 
 const sendSMS = async (req, res) => {
     try {
-        const { to, message,instID } = req.body;
+        const { to, message, instID } = req.body;
 
-
-        const user_id = "26730";
-        const api_key = "tmGnA2446kmhvuUHjyHl";
-        const sender_id = "EDU TEXTA";
-       // const _id = id
-
-      
+        // Load sensitive values from environment variables
+        const user_id = process.env.SMS_USER_ID;
+        const api_key = process.env.SMS_API_KEY;
+        const sender_id = process.env.SMS_SENDER_ID;
 
         // Make sure required fields are present
         if (!user_id || !api_key || !sender_id || !to || !message) {
@@ -29,14 +25,18 @@ const sendSMS = async (req, res) => {
             sender_id,
             to,
             message,
-      type: 'unicode', 
+            type: 'unicode', 
         };
 
         // Make the POST request to the API
         const response = await axios.post(url, payload);
 
         // Increment and store the count of sent SMS
-        const sMSCount = await instituteModel.findOneAndUpdate({_id: instID }, { $inc: { smsCount: 1 } }, { upsert: true });
+        const sMSCount = await instituteModel.findOneAndUpdate(
+            { _id: instID },
+            { $inc: { smsCount: 1 } },
+            { upsert: true }
+        );
 
         // Send the response back to the client
         res.status(200).json({ ...response.data, sMSCount });
@@ -46,6 +46,7 @@ const sendSMS = async (req, res) => {
         res.status(500).json({ error: 'Failed to send SMS' });
     }
 };
+
 const getSmsCount = async (req, res) => {
     try {
         // Query the database for the SMS count
@@ -54,7 +55,7 @@ const getSmsCount = async (req, res) => {
         // If there's no count document yet, return 0
         const count = smsCount ? smsCount.count : 0;
 
-        console.log(count)
+        console.log(count);
 
         // Send the SMS count as a response
         res.status(200).json({ count });
