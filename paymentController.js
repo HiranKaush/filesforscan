@@ -174,10 +174,6 @@ const calculateDailyIncome = async (req, res) => {
 
 const calculateMonthlyIncomeByInstID = async (req, res) => {
   const { inst_ID, month } = req.query;
-
-
-
-
   try {
     const payments = await PaymentModel.find({ inst_ID , month});
 
